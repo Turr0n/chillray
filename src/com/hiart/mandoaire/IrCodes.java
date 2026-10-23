@@ -76,10 +76,14 @@ final class IrCodes {
     private static final int MIDEA_MIN_GAP = 70 * MIDEA_TICK;
 
     static long mideaState(boolean power, int mode, int temp) {
-        long state = 0xA1L << 40;                       // Cabecera + tipo "comando"
-        state |= (long) ((power ? 0x80 : 0) | mode) << 32;  // Ventilador en auto (0)
-        state |= (long) (0x40 | (clamp(temp) - TEMP_MIN)) << 24;  // Celsius
-        state |= 0xFFFFL << 8;                          // Sin sensor ni temporizador
+        // El mando Midea/Mundo Clima real codifica la temperatura en Fahrenheit
+        // (bit useFahrenheit a 1), igual que IRremoteESP8266. Enviarla en
+        // Celsius-nativo hace que muchos equipos ignoren la trama y no enciendan.
+        int fahrenheit = (int) (clamp(temp) * 9.0 / 5.0 + 32.0) - 62;  // Byte3: 0..24
+        long state = 0xA1L << 40;                       // Byte5: cabecera 0b10100 + tipo "comando" (001)
+        state |= (long) ((power ? 0x80 : 0) | mode) << 32;  // Byte4: encendido + modo (ventilador en auto)
+        state |= (long) (0x60 | fahrenheit) << 24;      // Byte3: bit fijo (0x40) + Fahrenheit (0x20) + temp
+        state |= 0xFFFFL << 8;                          // Bytes 1-2: sin sensor ni temporizador
         return state | mideaChecksum(state);
     }
 
